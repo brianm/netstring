@@ -1,9 +1,14 @@
 package netstring_test
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/brianm/netstring"
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 )
@@ -78,4 +83,26 @@ func TestUnmarshal_AskInvalid(t *testing.T) {
 	a := struct{}{}
 	err := netstring.Unmarshal([]byte(in), &a)
 	require.Error(t, err)
+}
+
+func TestUnmarshal_Fuzz(t *testing.T) {
+	props := gopter.NewProperties(nil)
+	props.Property(
+		"unmarshalls things of arbitrary length",
+		prop.ForAll(func(v string) bool {
+			out, err := netstring.Marshal(v)
+			if err != nil {
+				return false
+			}
+			assert.Equal(t, fmt.Sprintf("%d:%s,", len([]byte(v)), v), string(out))
+
+			var in []string
+			err = netstring.Unmarshal(out, &in)
+			if err != nil {
+				return false
+			}
+			assert.Equal(t, v, in[0])
+			return reflect.DeepEqual(v, in[0])
+		}, gen.AnyString()))
+	props.TestingRun(t)
 }
